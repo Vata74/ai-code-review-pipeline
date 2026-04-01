@@ -1,0 +1,4 @@
+.env
+.claude/
+.mcp.json
+node_modules/
