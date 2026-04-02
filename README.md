@@ -1,12 +1,13 @@
 # AI Code Review Pipeline
 
-An intelligent, automated code review system powered by **Claude AI** that analyzes GitHub Pull Requests for security vulnerabilities, performance issues, and best practices — then posts review feedback directly on the PR.
+An intelligent, automated code review system powered by **Gemini AI** that analyzes GitHub Pull Requests for security vulnerabilities, performance issues, and best practices — then posts review feedback directly on the PR.
 
 ## Architecture
 
 ```
 [GitHub PR Webhook] → [Validate] → [Extract PR Data] → [Fetch Diff]
                                                             ↓
+                                                   [Prepare AI Requests]
                                           ┌─────────────────┼─────────────────┐
                                     [AI Security]    [AI Performance]    [AI Best Practices]
                                           └─────────────────┼─────────────────┘
@@ -20,36 +21,33 @@ An intelligent, automated code review system powered by **Claude AI** that analy
                                           ┌─────────────────┼─────────────────┐
                                      [Approve]     [Request Changes]      [Reject]
                                           └─────────────────┼─────────────────┘
-                                                   [Slack Notification]
-                                                            ↓
                                                      [Respond 200]
 ```
 
-**17 nodes** | **Double-diamond pattern** | **3 parallel AI agents** | **Weighted scoring**
+**18 nodes** | **Double-diamond pattern** | **3 parallel AI agents** | **Weighted scoring**
 
 ## What It Does
 
 1. **Receives** a GitHub webhook when a PR is opened
 2. **Fetches** the full diff via GitHub API
-3. **Analyzes in parallel** with 3 specialized AI agents (Claude):
+3. **Prepares** specialized prompts with strict scoring rubrics
+4. **Analyzes in parallel** with 3 specialized AI agents (Gemini 2.5 Flash):
    - **Security**: SQL injection, XSS, secret exposure, OWASP Top 10
    - **Performance**: N+1 queries, memory leaks, blocking I/O, missing pagination
    - **Best Practices**: SOLID violations, error handling, naming, complexity
-4. **Computes** a weighted composite score: `security × 0.4 + performance × 0.3 + practices × 0.3`
-5. **Stores** full audit trail in PostgreSQL (scores + JSONB findings)
-6. **Routes** the decision: Approve (≥80), Request Changes (50-79), Reject (<50)
-7. **Posts** a detailed review comment on the GitHub PR
-8. **Notifies** via Slack with score breakdown
+5. **Computes** a weighted composite score: `security x 0.4 + performance x 0.3 + practices x 0.3`
+6. **Stores** full audit trail in PostgreSQL (scores + JSONB findings)
+7. **Routes** the decision: Approve (>=80), Request Changes (50-79), Reject (<50)
+8. **Posts** a detailed review comment on the GitHub PR
 
 ## Tech Stack
 
 | Component | Technology |
 |---|---|
 | Workflow Engine | n8n (self-hosted) |
-| AI Analysis | Anthropic Claude API |
+| AI Analysis | Google Gemini 2.5 Flash |
 | Source Control | GitHub REST API v3 |
 | Database | PostgreSQL 16 |
-| Notifications | Slack Incoming Webhooks |
 | Infrastructure | Docker Compose |
 
 ## Quick Start
@@ -74,9 +72,8 @@ docker compose up -d
 
 # 6. Configure credentials in n8n:
 #    - GitHub API Token (Header Auth)
-#    - Anthropic API Key (Header Auth)
+#    - Gemini API Key (in workflow node URLs)
 #    - PostgreSQL connection
-#    - Slack Webhook URL
 ```
 
 ## Credentials Setup
@@ -84,9 +81,8 @@ docker compose up -d
 | Credential | Type | Configuration |
 |---|---|---|
 | GitHub API Token | Header Auth | `Authorization: Bearer ghp_YOUR_TOKEN` |
-| Anthropic API Key | Header Auth | `x-api-key: sk-ant-YOUR_KEY` |
+| Gemini API Key | URL parameter | Replace `YOUR_GEMINI_API_KEY` in AI node URLs |
 | PostgreSQL | Postgres | Host: `n8n-postgres`, Port: `5432`, DB/User/Pass from `.env` |
-| Slack Webhook | URL in node | `https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK` |
 
 ## Database Schema
 
@@ -109,7 +105,7 @@ CREATE TABLE code_reviews (
 
 | Score | Verdict | Action |
 |---|---|---|
-| ≥ 80 | APPROVE | Auto-approve PR |
+| >= 80 | APPROVE | Auto-approve PR |
 | 50-79 | REQUEST_CHANGES | Post findings, request fixes |
 | < 50 | REJECT | Block with critical findings |
 
