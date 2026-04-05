@@ -1,74 +1,87 @@
 {
   "name": "AI Code Review Pipeline",
+  "active": true,
   "nodes": [
     {
+      "id": "6587ae81-f090-4b5b-a07d-e08b098b32da",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -1296,
+        144
+      ],
       "parameters": {
+        "options": {},
         "conditions": {
           "options": {
-            "caseSensitive": true,
             "leftValue": "",
+            "caseSensitive": true,
             "typeValidation": "strict"
           },
+          "combinator": "or",
           "conditions": [
             {
               "id": "condition-action",
-              "leftValue": "={{ $json.body.action }}",
-              "rightValue": "opened",
               "operator": {
                 "type": "string",
                 "operation": "equals"
-              }
+              },
+              "leftValue": "={{ $json.body.action }}",
+              "rightValue": "opened"
             }
-          ],
-          "combinator": "or"
-        },
-        "options": {}
-      },
-      "id": "node-validate",
-      "name": "Validate Payload",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        512,
-        304
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ error: 'Invalid webhook payload. Expected PR event with action opened or synchronize.', received_action: $json.body.action || 'none' }) }}",
-        "options": {
-          "responseCode": 400
+          ]
         }
       },
-      "id": "node-reject",
-      "name": "Reject Invalid",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        752,
-        528
-      ]
+      "typeVersion": 2
     },
     {
+      "id": "7887ac4a-cb3d-48ae-99c7-ca2a9263bbab",
+      "name": "Reject Invalid",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        -1056,
+        368
+      ],
+      "parameters": {
+        "options": {
+          "responseCode": 400
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'Invalid webhook payload. Expected PR event with action opened or synchronize.', received_action: $json.body.action || 'none' }) }}"
+      },
+      "typeVersion": 1.1
+    },
+    {
+      "id": "c6b40c9e-49ac-4655-a3f4-8979fa723313",
+      "name": "Extract PR Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -1056,
+        144
+      ],
       "parameters": {
         "jsCode": "const body = $input.first().json.body;\nconst pr = body.pull_request;\n\nif (!pr) {\n  throw new Error('No pull_request object found in webhook payload');\n}\n\nreturn [{\n  json: {\n    prNumber: pr.number,\n    repo: body.repository.full_name,\n    repoOwner: body.repository.full_name.split('/')[0],\n    repoName: body.repository.full_name.split('/')[1],\n    author: pr.user.login,\n    title: pr.title,\n    description: pr.body || '',\n    diffUrl: pr.diff_url,\n    sha: pr.head.sha,\n    branch: pr.head.ref,\n    baseBranch: pr.base.ref,\n    additions: pr.additions || 0,\n    deletions: pr.deletions || 0,\n    changedFiles: pr.changed_files || 0,\n    htmlUrl: pr.html_url,\n    timestamp: new Date().toISOString(),\n    startTime: Date.now()\n  }\n}];"
       },
-      "id": "node-extract",
-      "name": "Extract PR Data",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        752,
-        304
-      ]
+      "typeVersion": 2
     },
     {
+      "id": "1828a6a9-ceb2-4329-a923-84e5c044c3e2",
+      "name": "Fetch PR Diff",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -800,
+        144
+      ],
       "parameters": {
         "url": "=https://api.github.com/repos/{{ $json.repo }}/pulls/{{ $json.prNumber }}/files",
+        "options": {
+          "response": {
+            "response": {}
+          }
+        },
+        "sendHeaders": true,
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
@@ -80,66 +93,36 @@
               "value": "2022-11-28"
             }
           ]
-        },
-        "options": {
-          "response": {
-            "response": {}
-          }
         }
       },
-      "id": "node-fetch-diff",
-      "name": "Fetch PR Diff",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1008,
-        304
-      ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "1M12T0Y7Ova8loxW",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
           "name": "Header Auth account 3"
         }
-      }
+      },
+      "typeVersion": 4.2
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "options": {
-          "response": {
-            "response": {}
-          }
-        },
-        "jsonBody": "={{ JSON.stringify($json.securityBody) }}"
-      },
-      "id": "node-ai-security",
+      "id": "662d164b-147c-4437-84f0-92deccd5f23f",
       "name": "AI Security Analysis",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "position": [
-        1400,
-        80
-      ]
-    },
-    {
+        -400,
+        -80
+      ],
       "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=YOUR_GEMINI_API_KEY",
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
-        "authentication": "none",
+        "options": {
+          "response": {
+            "response": {}
+          }
+        },
+        "jsonBody": "={{ JSON.stringify($json.securityBody) }}",
+        "sendBody": true,
         "sendHeaders": true,
+        "specifyBody": "json",
         "headerParameters": {
           "parameters": [
             {
@@ -147,31 +130,30 @@
               "value": "application/json"
             }
           ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "options": {
-          "response": {
-            "response": {}
-          }
-        },
-        "jsonBody": "={{ JSON.stringify($json.performanceBody) }}"
+        }
       },
-      "id": "node-ai-performance",
+      "typeVersion": 4.2
+    },
+    {
+      "id": "71840292-1277-4b43-a3f9-3076384eaa4f",
       "name": "AI Performance Analysis",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "position": [
-        1400,
-        300
-      ]
-    },
-    {
+        -400,
+        144
+      ],
       "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=YOUR_GEMINI_API_KEY",
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
-        "authentication": "none",
+        "options": {
+          "response": {
+            "response": {}
+          }
+        },
+        "jsonBody": "={{ JSON.stringify($json.performanceBody) }}",
+        "sendBody": true,
         "sendHeaders": true,
+        "specifyBody": "json",
         "headerParameters": {
           "parameters": [
             {
@@ -179,203 +161,189 @@
               "value": "application/json"
             }
           ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "9e16b395-984a-4e5c-a5b4-9feccf5afb97",
+      "name": "AI Best Practices",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -400,
+        368
+      ],
+      "parameters": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=YOUR_GEMINI_API_KEY",
+        "method": "POST",
         "options": {
           "response": {
             "response": {}
           }
         },
-        "jsonBody": "={{ JSON.stringify($json.practicesBody) }}"
+        "jsonBody": "={{ JSON.stringify($json.practicesBody) }}",
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyBody": "json",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
       },
-      "id": "node-ai-practices",
-      "name": "AI Best Practices",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1400,
-        520
-      ]
+      "typeVersion": 4.2
     },
     {
-      "parameters": {
-        "mode": "append",
-        "numberInputs": 3,
-        "options": {}
-      },
-      "id": "node-merge",
+      "id": "ddc68d2c-f079-44c2-ab37-d6cc507aec55",
       "name": "Merge AI Results",
       "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
       "position": [
-        1700,
-        300
-      ]
+        -96,
+        144
+      ],
+      "parameters": {
+        "numberInputs": 3
+      },
+      "typeVersion": 3
     },
     {
-      "parameters": {
-        "jsCode": "const items = $input.all();\n\nfunction parseGeminiResponse(item) {\n  try {\n    if (!item || !item.json) return { score: 50, severity: 'medium', findings: [], summary: 'No data received' };\n    const d = item.json;\n    if (d.candidates && d.candidates[0] && d.candidates[0].content) {\n      return JSON.parse(d.candidates[0].content.parts[0].text);\n    }\n    if (d.score !== undefined) return d;\n    return { score: 50, severity: 'medium', findings: [], summary: 'Unexpected format' };\n  } catch (e) {\n    return { score: 50, severity: 'medium', findings: [], summary: 'Parse error: ' + e.message };\n  }\n}\n\nconst security = parseGeminiResponse(items[0]);\nconst performance = parseGeminiResponse(items[1]);\nconst practices = parseGeminiResponse(items[2]);\n\nconst compositeScore = Math.round(\n  (security.score * 0.4) + (performance.score * 0.3) + (practices.score * 0.3)\n);\n\nlet verdict;\nif (compositeScore >= 80) verdict = 'APPROVE';\nelse if (compositeScore >= 50) verdict = 'REQUEST_CHANGES';\nelse verdict = 'REJECT';\n\nif ((security.findings || []).some(f => f.severity === 'critical')) verdict = 'REJECT';\n\nconst prData = $node['Extract PR Data'].json;\n\nreturn [{\n  json: {\n    prNumber: prData.prNumber,\n    repo: prData.repo,\n    repoOwner: prData.repoOwner,\n    repoName: prData.repoName,\n    author: prData.author,\n    title: prData.title,\n    branch: prData.branch,\n    baseBranch: prData.baseBranch,\n    sha: prData.sha,\n    htmlUrl: prData.htmlUrl,\n    securityScore: security.score,\n    performanceScore: performance.score,\n    practicesScore: practices.score,\n    compositeScore: compositeScore,\n    verdict: verdict,\n    securitySummary: security.summary,\n    performanceSummary: performance.summary,\n    practicesSummary: practices.summary,\n    securityFindings: security.findings || [],\n    performanceFindings: performance.findings || [],\n    practicesFindings: practices.findings || [],\n    executionTimeMs: Date.now() - prData.startTime\n  }\n}];"
-      },
-      "id": "node-score",
+      "id": "f5e95faa-b2fa-4507-9f61-5a2e6a9032e4",
       "name": "Compute Review Score",
       "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
       "position": [
-        1950,
-        300
-      ]
+        144,
+        144
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfunction parseGeminiResponse(item) {\n  try {\n    if (!item || !item.json) {\n      return { score: 50, severity: 'medium', findings: [], summary: 'No data received' };\n    }\n    const d = item.json;\n    if (d.candidates && d.candidates[0] && d.candidates[0].content) {\n      const text = d.candidates[0].content.parts[0].text;\n      return JSON.parse(text);\n    }\n    if (d.score !== undefined) return d;\n    if (typeof d.content === 'string') return JSON.parse(d.content);\n    return { score: 50, severity: 'medium', findings: [], summary: 'Unexpected response format' };\n  } catch (e) {\n    return { score: 50, severity: 'medium', findings: [], summary: 'Parse error: ' + e.message };\n  }\n}\n\nconst security = parseGeminiResponse(items[0]);\nconst performance = parseGeminiResponse(items[1]);\nconst practices = parseGeminiResponse(items[2]);\n\nconst compositeScore = Math.round(\n  (security.score * 0.4) +\n  (performance.score * 0.3) +\n  (practices.score * 0.3)\n);\n\nlet verdict;\nif (compositeScore >= 80) verdict = 'APPROVE';\nelse if (compositeScore >= 50) verdict = 'REQUEST_CHANGES';\nelse verdict = 'REJECT';\n\n// Collect all findings with category\nconst allRaw = [\n  ...(security.findings || []).map(f => ({ ...f, category: 'security' })),\n  ...(performance.findings || []).map(f => ({ ...f, category: 'performance' })),\n  ...(practices.findings || []).map(f => ({ ...f, category: 'practices' }))\n];\n\n// Deduplicate by file + line + type (keep highest severity)\nconst severityRank = { critical: 4, high: 3, medium: 2, low: 1 };\nconst seen = new Map();\n\nfor (const f of allRaw) {\n  const key = (f.file || '') + ':' + String(f.line || '').replace(/[^0-9,-]/g, '');\n  const existing = seen.get(key);\n  if (!existing || (severityRank[f.severity] || 0) > (severityRank[existing.severity] || 0)) {\n    seen.set(key, f);\n  }\n}\n\nconst allFindings = Array.from(seen.values());\nconst criticalCount = allFindings.filter(f => f.severity === 'critical').length;\nconst highCount = allFindings.filter(f => f.severity === 'high').length;\nconst dedupedCount = allRaw.length - allFindings.length;\n\nif (criticalCount > 0 && (security.findings || []).some(f => f.severity === 'critical')) {\n  verdict = 'REJECT';\n}\n\nconst prData = $node['Extract PR Data'].json;\nconst executionTime = Date.now() - prData.startTime;\n\nreturn [{\n  json: {\n    prNumber: prData.prNumber,\n    repo: prData.repo,\n    repoOwner: prData.repoOwner,\n    repoName: prData.repoName,\n    author: prData.author,\n    title: prData.title,\n    branch: prData.branch,\n    baseBranch: prData.baseBranch,\n    sha: prData.sha,\n    htmlUrl: prData.htmlUrl,\n    securityScore: security.score,\n    performanceScore: performance.score,\n    practicesScore: practices.score,\n    compositeScore: compositeScore,\n    verdict: verdict,\n    securityFindings: (security.findings || []),\n    performanceFindings: (performance.findings || []),\n    practicesFindings: (practices.findings || []),\n    securitySummary: security.summary,\n    performanceSummary: performance.summary,\n    practicesSummary: practices.summary,\n    totalFindings: allFindings.length,\n    duplicatesRemoved: dedupedCount,\n    criticalCount: criticalCount,\n    highCount: highCount,\n    executionTimeMs: executionTime,\n    reviewBody: '## AI Code Review - Score: ' + compositeScore + '/100 (' + verdict + ')\\n\\n' +\n      '| Category | Score | Findings |\\n|---|---|---|\\n' +\n      '| Security | ' + security.score + '/100 | ' + (security.findings || []).length + ' |\\n' +\n      '| Performance | ' + performance.score + '/100 | ' + (performance.findings || []).length + ' |\\n' +\n      '| Best Practices | ' + practices.score + '/100 | ' + (practices.findings || []).length + ' |\\n\\n' +\n      '### Security\\n' + security.summary + '\\n\\n' +\n      '### Performance\\n' + performance.summary + '\\n\\n' +\n      '### Best Practices\\n' + practices.summary + '\\n\\n' +\n      (criticalCount > 0 ? '**' + criticalCount + ' CRITICAL finding(s) detected.**\\n\\n' : '') +\n      '### Findings (' + allFindings.length + ' unique' + (dedupedCount > 0 ? ', ' + dedupedCount + ' duplicates removed' : '') + ')\\n\\n' +\n      allFindings.filter(f => f.severity === 'critical' || f.severity === 'high').map(f =>\n        '- **[' + f.severity.toUpperCase() + '] [' + f.category + ']** ' + f.file + ':' + f.line + ' - ' + f.description\n      ).join('\\n') +\n      '\\n\\n---\\n*Automated review by AI Code Review Pipeline*'\n  }\n}];"
+      },
+      "typeVersion": 2
     },
     {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO code_reviews (pr_number, repo, author, branch, title, sha, security_score, performance_score, practices_score, composite_score, verdict, security_findings, performance_findings, practices_findings, ai_model, execution_time_ms) VALUES ({{ $json.prNumber }}, '{{ $json.repo }}', '{{ $json.author }}', '{{ $json.branch }}', '{{ $json.title.replace(/'/g, \"''\") }}', '{{ $json.sha }}', {{ $json.securityScore }}, {{ $json.performanceScore }}, {{ $json.practicesScore }}, {{ $json.compositeScore }}, '{{ $json.verdict }}', '{{ JSON.stringify($json.securityFindings).replace(/'/g, \"''\") }}'::jsonb, '{{ JSON.stringify($json.performanceFindings).replace(/'/g, \"''\") }}'::jsonb, '{{ JSON.stringify($json.practicesFindings).replace(/'/g, \"''\") }}'::jsonb, 'claude-sonnet-4-6', {{ $json.executionTimeMs }}) RETURNING id, composite_score, verdict;",
-        "options": {}
-      },
-      "id": "node-postgres",
+      "id": "3d3bbee2-a880-4a36-a1b4-704d251890bd",
       "name": "Store in PostgreSQL",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
       "position": [
-        2850,
-        300
+        400,
+        144
       ],
+      "parameters": {
+        "query": "INSERT INTO code_reviews (pr_number, repo, author, branch, title, sha, security_score, performance_score, practices_score, composite_score, verdict, security_findings, performance_findings, practices_findings, ai_model, execution_time_ms) VALUES ({{ $json.prNumber }}, '{{ $json.repo }}', '{{ $json.author }}', '{{ $json.branch }}', '{{ $json.title.replace(/'/g, \"''\") }}', '{{ $json.sha }}', {{ $json.securityScore }}, {{ $json.performanceScore }}, {{ $json.practicesScore }}, {{ $json.compositeScore }}, '{{ $json.verdict }}', '{{ JSON.stringify($json.securityFindings).replace(/'/g, \"''\") }}'::jsonb, '{{ JSON.stringify($json.performanceFindings).replace(/'/g, \"''\") }}'::jsonb, '{{ JSON.stringify($json.practicesFindings).replace(/'/g, \"''\") }}'::jsonb, 'claude-sonnet-4-6', {{ $json.executionTimeMs }}) RETURNING id, composite_score, verdict;",
+        "options": {},
+        "operation": "executeQuery"
+      },
       "credentials": {
         "postgres": {
-          "id": "cNyl1K5QF7hwC4ye",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
           "name": "Postgres account"
         }
-      }
+      },
+      "typeVersion": 2.5
     },
     {
+      "id": "2f8a0ce1-67b6-4103-9616-a4b767e48276",
+      "name": "Review Decision",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        656,
+        144
+      ],
       "parameters": {
         "rules": {
           "values": [
             {
+              "outputKey": "Approve",
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
                   "leftValue": "",
+                  "caseSensitive": true,
                   "typeValidation": "strict"
                 },
+                "combinator": "and",
                 "conditions": [
                   {
-                    "leftValue": "={{ $node['Parse Formatted Review'].json.compositeScore }}",
-                    "rightValue": 80,
                     "operator": {
                       "type": "number",
                       "operation": "gte"
-                    }
+                    },
+                    "leftValue": "={{ $node['Compute Review Score'].json.compositeScore }}",
+                    "rightValue": 80
                   }
-                ],
-                "combinator": "and"
+                ]
               },
-              "renameOutput": true,
-              "outputKey": "Approve"
+              "renameOutput": true
             },
             {
+              "outputKey": "Request Changes",
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
                   "leftValue": "",
+                  "caseSensitive": true,
                   "typeValidation": "strict"
                 },
+                "combinator": "and",
                 "conditions": [
                   {
-                    "leftValue": "={{ $node['Parse Formatted Review'].json.compositeScore }}",
-                    "rightValue": 50,
                     "operator": {
                       "type": "number",
                       "operation": "gte"
-                    }
+                    },
+                    "leftValue": "={{ $node['Compute Review Score'].json.compositeScore }}",
+                    "rightValue": 50
                   }
-                ],
-                "combinator": "and"
+                ]
               },
-              "renameOutput": true,
-              "outputKey": "Request Changes"
+              "renameOutput": true
             },
             {
+              "outputKey": "Reject",
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
                   "leftValue": "",
+                  "caseSensitive": true,
                   "typeValidation": "strict"
                 },
+                "combinator": "and",
                 "conditions": [
                   {
-                    "leftValue": "={{ $node['Parse Formatted Review'].json.compositeScore }}",
-                    "rightValue": 50,
                     "operator": {
                       "type": "number",
                       "operation": "lt"
-                    }
+                    },
+                    "leftValue": "={{ $node['Compute Review Score'].json.compositeScore }}",
+                    "rightValue": 50
                   }
-                ],
-                "combinator": "and"
+                ]
               },
-              "renameOutput": true,
-              "outputKey": "Reject"
+              "renameOutput": true
             }
           ]
         },
         "options": {}
       },
-      "id": "node-switch",
-      "name": "Review Decision",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.2,
-      "position": [
-        3100,
-        300
-      ]
+      "typeVersion": 3.2
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.github.com/repos/{{ $node['Parse Formatted Review'].json.repo }}/pulls/{{ $node['Parse Formatted Review'].json.prNumber }}/reviews",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Accept",
-              "value": "application/vnd.github.v3+json"
-            },
-            {
-              "name": "X-GitHub-Api-Version",
-              "value": "2022-11-28"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ commit_id: $node[\"Parse Formatted Review\"].json.sha, body: $node[\"Parse Formatted Review\"].json.reviewBody, event: \"APPROVE\" }) }}",
-        "options": {}
-      },
-      "id": "node-approve",
+      "id": "71b55ed8-7425-4043-86d6-8f5896754e5a",
       "name": "Post Approved",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "position": [
-        3350,
-        80
+        896,
+        -80
       ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1M12T0Y7Ova8loxW",
-          "name": "Header Auth account 3"
-        }
-      }
-    },
-    {
       "parameters": {
+        "url": "=https://api.github.com/repos/{{ $node['Compute Review Score'].json.repo }}/pulls/{{ $node['Compute Review Score'].json.prNumber }}/reviews",
         "method": "POST",
-        "url": "=https://api.github.com/repos/{{ $node['Parse Formatted Review'].json.repo }}/pulls/{{ $node['Parse Formatted Review'].json.prNumber }}/reviews",
+        "options": {},
+        "jsonBody": "={{ JSON.stringify({ commit_id: $node[\"Compute Review Score\"].json.sha, body: $node[\"Compute Review Score\"].json.reviewBody, event: \"APPROVE\" }) }}",
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyBody": "json",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
@@ -387,34 +355,34 @@
               "value": "2022-11-28"
             }
           ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ commit_id: $node[\"Parse Formatted Review\"].json.sha, body: $node[\"Parse Formatted Review\"].json.reviewBody, event: \"COMMENT\" }) }}",
-        "options": {}
+        }
       },
-      "id": "node-changes",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Header Auth account 3"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "f8a09213-9ce4-40c0-be00-e7ecf019c0f6",
       "name": "Post Changes Requested",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "position": [
-        3350,
-        300
+        896,
+        144
       ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "1M12T0Y7Ova8loxW",
-          "name": "Header Auth account 3"
-        }
-      }
-    },
-    {
       "parameters": {
+        "url": "=https://api.github.com/repos/{{ $node['Compute Review Score'].json.repo }}/pulls/{{ $node['Compute Review Score'].json.prNumber }}/reviews",
         "method": "POST",
-        "url": "=https://api.github.com/repos/{{ $node['Parse Formatted Review'].json.repo }}/pulls/{{ $node['Parse Formatted Review'].json.prNumber }}/reviews",
+        "options": {},
+        "jsonBody": "={{ JSON.stringify({ commit_id: $node[\"Compute Review Score\"].json.sha, body: $node[\"Compute Review Score\"].json.reviewBody, event: \"COMMENT\" }) }}",
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyBody": "json",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
@@ -426,145 +394,119 @@
               "value": "2022-11-28"
             }
           ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ commit_id: $node[\"Parse Formatted Review\"].json.sha, body: $node[\"Parse Formatted Review\"].json.reviewBody, event: \"COMMENT\" }) }}",
-        "options": {}
+        }
       },
-      "id": "node-reject-review",
-      "name": "Post Rejected",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        3350,
-        520
-      ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "1M12T0Y7Ova8loxW",
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
           "name": "Header Auth account 3"
         }
-      }
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{/* REPLACE WITH YOUR SLACK WEBHOOK URL */ 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'}}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"{{ $node['Compute Review Score'].json.verdict === 'APPROVE' ? '\\u2705' : $node['Compute Review Score'].json.verdict === 'REQUEST_CHANGES' ? '\\u26a0\\ufe0f' : '\\u274c' }} AI Code Review: {{ $node['Compute Review Score'].json.verdict }}\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        { \"type\": \"mrkdwn\", \"text\": \"*PR:* <{{ $node['Compute Review Score'].json.htmlUrl }}|#{{ $node['Compute Review Score'].json.prNumber }} {{ $node['Compute Review Score'].json.title }}>\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Author:* {{ $node['Compute Review Score'].json.author }}\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Branch:* `{{ $node['Compute Review Score'].json.branch }}` \\u2192 `{{ $node['Compute Review Score'].json.baseBranch }}`\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Score:* {{ $node['Compute Review Score'].json.compositeScore }}/100\" }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Breakdown:*\\n\\u2022 Security: {{ $node['Compute Review Score'].json.securityScore }}/100 ({{ $node['Compute Review Score'].json.securityFindings.length }} findings)\\n\\u2022 Performance: {{ $node['Compute Review Score'].json.performanceScore }}/100 ({{ $node['Compute Review Score'].json.performanceFindings.length }} findings)\\n\\u2022 Best Practices: {{ $node['Compute Review Score'].json.practicesScore }}/100 ({{ $node['Compute Review Score'].json.practicesFindings.length }} findings)\"\n      }\n    },\n    {\n      \"type\": \"context\",\n      \"elements\": [\n        { \"type\": \"mrkdwn\", \"text\": \"Reviewed in {{ Math.round($node['Compute Review Score'].json.executionTimeMs / 1000) }}s | {{ $node['Compute Review Score'].json.totalFindings }} total findings | {{ $node['Compute Review Score'].json.criticalCount }} critical\" }\n      ]\n    }\n  ]\n}",
-        "options": {}
       },
-      "id": "node-slack",
-      "name": "Slack Notification",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2950,
-        300
-      ]
+      "typeVersion": 4.2
     },
     {
+      "id": "e010dc3b-6c8d-4911-aa38-f6bda8b5fb3b",
+      "name": "Post Rejected",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        896,
+        368
+      ],
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: true, reviewId: $node['Store in PostgreSQL'].json.id || 'generated', verdict: $node['Parse Formatted Review'].json.verdict, compositeScore: $node['Parse Formatted Review'].json.compositeScore, scores: { security: $node['Parse Formatted Review'].json.securityScore, performance: $node['Parse Formatted Review'].json.performanceScore, practices: $node['Parse Formatted Review'].json.practicesScore }, totalFindings: $node['Parse Formatted Review'].json.totalFindings, executionTimeMs: $node['Parse Formatted Review'].json.executionTimeMs }) }}",
-        "options": {
-          "responseCode": 200
+        "url": "=https://api.github.com/repos/{{ $node['Compute Review Score'].json.repo }}/pulls/{{ $node['Compute Review Score'].json.prNumber }}/reviews",
+        "method": "POST",
+        "options": {},
+        "jsonBody": "={{ JSON.stringify({ commit_id: $node[\"Compute Review Score\"].json.sha, body: $node[\"Compute Review Score\"].json.reviewBody, event: \"COMMENT\" }) }}",
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyBody": "json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
         }
       },
-      "id": "node-respond",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Header Auth account 3"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "faf7f805-23a7-4d42-940c-5a281a88133d",
+      "name": "Slack Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1152,
+        144
+      ],
+      "parameters": {
+        "url": "={{/* REPLACE WITH YOUR SLACK WEBHOOK URL */ 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'}}",
+        "method": "POST",
+        "options": {},
+        "jsonBody": "={\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"{{ $node['Compute Review Score'].json.verdict === 'APPROVE' ? '\\u2705' : $node['Compute Review Score'].json.verdict === 'REQUEST_CHANGES' ? '\\u26a0\\ufe0f' : '\\u274c' }} AI Code Review: {{ $node['Compute Review Score'].json.verdict }}\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        { \"type\": \"mrkdwn\", \"text\": \"*PR:* <{{ $node['Compute Review Score'].json.htmlUrl }}|#{{ $node['Compute Review Score'].json.prNumber }} {{ $node['Compute Review Score'].json.title }}>\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Author:* {{ $node['Compute Review Score'].json.author }}\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Branch:* `{{ $node['Compute Review Score'].json.branch }}` \\u2192 `{{ $node['Compute Review Score'].json.baseBranch }}`\" },\n        { \"type\": \"mrkdwn\", \"text\": \"*Score:* {{ $node['Compute Review Score'].json.compositeScore }}/100\" }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Breakdown:*\\n\\u2022 Security: {{ $node['Compute Review Score'].json.securityScore }}/100 ({{ $node['Compute Review Score'].json.securityFindings.length }} findings)\\n\\u2022 Performance: {{ $node['Compute Review Score'].json.performanceScore }}/100 ({{ $node['Compute Review Score'].json.performanceFindings.length }} findings)\\n\\u2022 Best Practices: {{ $node['Compute Review Score'].json.practicesScore }}/100 ({{ $node['Compute Review Score'].json.practicesFindings.length }} findings)\"\n      }\n    },\n    {\n      \"type\": \"context\",\n      \"elements\": [\n        { \"type\": \"mrkdwn\", \"text\": \"Reviewed in {{ Math.round($node['Compute Review Score'].json.executionTimeMs / 1000) }}s | {{ $node['Compute Review Score'].json.totalFindings }} total findings | {{ $node['Compute Review Score'].json.criticalCount }} critical\" }\n      ]\n    }\n  ]\n}",
+        "sendBody": true,
+        "specifyBody": "json"
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "94634717-5c29-45d4-9849-3764e112de4c",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
       "position": [
-        3600,
-        300
-      ]
+        1392,
+        144
+      ],
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, reviewId: $node['Store in PostgreSQL'].json.id || 'generated', verdict: $node['Compute Review Score'].json.verdict, compositeScore: $node['Compute Review Score'].json.compositeScore, scores: { security: $node['Compute Review Score'].json.securityScore, performance: $node['Compute Review Score'].json.performanceScore, practices: $node['Compute Review Score'].json.practicesScore }, totalFindings: $node['Compute Review Score'].json.totalFindings, executionTimeMs: $node['Compute Review Score'].json.executionTimeMs }) }}"
+      },
+      "typeVersion": 1.1
     },
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "github-pr-review",
-        "responseMode": "responseNode",
-        "options": {}
-      },
-      "id": "node-webhook",
+      "id": "f1cc5874-293d-488f-93b5-b6cdb1eb2f59",
       "name": "GitHub PR Webhook",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
       "position": [
-        256,
-        304
+        -1552,
+        144
       ],
-      "webhookId": "github-pr-review"
+      "webhookId": "github-pr-review",
+      "parameters": {
+        "path": "github-pr-review",
+        "options": {},
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      },
+      "typeVersion": 2
     },
     {
+      "id": "24508682-1bab-4396-838e-3495a030e6ad",
+      "name": "Prepare AI Requests",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -656,
+        144
+      ],
       "parameters": {
         "jsCode": "const prData = $node['Extract PR Data'].json;\nconst diffData = JSON.stringify($input.first().json).substring(0, 8000);\n\nconst securitySystem = `You are a senior security engineer doing automated code review.\nAnalyze the code diff for: SQL injection, XSS, CSRF, auth bypasses, hardcoded secrets, path traversal, command injection, OWASP Top 10.\n\nSCORING RULES:\n- 0-20: Critical vulnerabilities found (SQL injection, hardcoded secrets, no auth)\n- 21-40: High severity issues found\n- 41-60: Medium issues found\n- 61-80: Minor issues only\n- 81-100: No security issues found\n\nBe STRICT. If you find SQL injection or hardcoded secrets, the score MUST be below 20.\n\nReturn ONLY valid JSON:\n{\n  \"score\": <0-100 where 0 is worst and 100 is perfectly secure>,\n  \"severity\": \"critical|high|medium|low|none\",\n  \"findings\": [{\"type\": \"string\", \"severity\": \"critical|high|medium|low\", \"file\": \"string\", \"line\": \"string\", \"description\": \"string\", \"suggestion\": \"string\"}],\n  \"summary\": \"string\"\n}`;\n\nconst performanceSystem = `You are a senior performance engineer doing automated code review.\nAnalyze for: N+1 queries, missing indexes, memory leaks, unoptimized loops, blocking I/O, missing pagination, missing caching, sync that should be async.\n\nSCORING RULES:\n- 0-20: Critical performance issues (N+1 queries in loops, memory leaks)\n- 21-40: High impact issues\n- 41-60: Medium issues\n- 61-80: Minor optimizations needed\n- 81-100: No performance issues\n\nBe STRICT. N+1 queries inside a loop = score below 20.\n\nReturn ONLY valid JSON:\n{\n  \"score\": <0-100 where 0 is worst and 100 is perfectly optimized>,\n  \"severity\": \"critical|high|medium|low|none\",\n  \"findings\": [{\"type\": \"string\", \"severity\": \"critical|high|medium|low\", \"file\": \"string\", \"line\": \"string\", \"description\": \"string\", \"suggestion\": \"string\", \"impact\": \"string\"}],\n  \"summary\": \"string\"\n}`;\n\nconst practicesSystem = `You are a senior software architect doing automated code review.\nAnalyze for: SOLID violations, missing error handling, poor naming, code duplication, missing input validation, improper logging, excessive complexity, missing tests, anti-patterns.\n\nSCORING RULES:\n- 0-20: Fundamental violations (no error handling, no validation, anti-patterns everywhere)\n- 21-40: Major violations\n- 41-60: Several issues\n- 61-80: Minor improvements needed\n- 81-100: Clean, well-structured code\n\nReturn ONLY valid JSON:\n{\n  \"score\": <0-100 where 0 is worst and 100 is perfect quality>,\n  \"severity\": \"critical|high|medium|low|none\",\n  \"findings\": [{\"type\": \"string\", \"severity\": \"critical|high|medium|low\", \"file\": \"string\", \"line\": \"string\", \"description\": \"string\", \"suggestion\": \"string\", \"principle\": \"string\"}],\n  \"summary\": \"string\"\n}`;\n\nconst securityContent = 'Analyze this PR for security vulnerabilities:\\nPR: ' + prData.title + '\\nAuthor: ' + prData.author + '\\nBranch: ' + prData.branch + ' -> ' + prData.baseBranch + '\\n\\nChanged files:\\n' + diffData;\nconst performanceContent = 'Analyze this PR for performance issues:\\nPR: ' + prData.title + '\\nAuthor: ' + prData.author + '\\nChanges: +' + prData.additions + '/-' + prData.deletions + ' in ' + prData.changedFiles + ' files\\n\\nChanged files:\\n' + diffData;\nconst practicesContent = 'Analyze this PR for code quality and best practices:\\nPR: ' + prData.title + '\\nAuthor: ' + prData.author + '\\nDescription: ' + (prData.description || 'none') + '\\n\\nChanged files:\\n' + diffData;\n\nfunction buildBody(system, content) {\n  return {\n    system_instruction: { parts: [{ text: system }] },\n    contents: [{ parts: [{ text: content }] }],\n    generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }\n  };\n}\n\nreturn [{\n  json: {\n    securityBody: buildBody(securitySystem, securityContent),\n    performanceBody: buildBody(performanceSystem, performanceContent),\n    practicesBody: buildBody(practicesSystem, practicesContent)\n  }\n}];"
       },
-      "id": "node-prepare-ai",
-      "name": "Prepare AI Requests",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1150,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const d = $input.first().json;\n\nconst allFindings = [\n  ...(d.securityFindings || []).map(f => ({...f, category: 'security'})),\n  ...(d.performanceFindings || []).map(f => ({...f, category: 'performance'})),\n  ...(d.practicesFindings || []).map(f => ({...f, category: 'practices'}))\n];\n\nconst prompt = `You are a senior code review editor. Below is the raw output from 3 AI agents that analyzed a pull request.\n\nYour job:\n1. DEDUPLICATE: Remove findings that describe the same issue on the same file:line. Keep the most detailed version with the highest severity.\n2. FORMAT: Produce a clean, professional GitHub PR review comment in Markdown.\n3. Group findings by severity (critical first, then high, then medium/low).\n4. Be concise but thorough.\n\nPR: ${d.title}\nAuthor: ${d.author}\nBranch: ${d.branch} -> ${d.baseBranch}\n\nScores:\n- Security: ${d.securityScore}/100\n- Performance: ${d.performanceScore}/100\n- Best Practices: ${d.practicesScore}/100\n- Composite: ${d.compositeScore}/100\n- Verdict: ${d.verdict}\n\nSecurity Summary: ${d.securitySummary}\nPerformance Summary: ${d.performanceSummary}\nBest Practices Summary: ${d.practicesSummary}\n\nAll raw findings (may contain duplicates across categories):\n${JSON.stringify(allFindings, null, 2)}\n\nReturn ONLY valid JSON:\n{\n  \"reviewBody\": \"<complete markdown review ready to post as GitHub PR comment>\",\n  \"uniqueFindings\": <number of unique findings after dedup>,\n  \"duplicatesRemoved\": <number removed>\n}`;\n\nconst body = {\n  system_instruction: { parts: [{ text: 'You are a code review formatting and deduplication expert. Produce clean, professional GitHub review comments. Return only valid JSON.' }] },\n  contents: [{ parts: [{ text: prompt }] }],\n  generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }\n};\n\nreturn [{ json: { ...d, formatBody: body } }];"
-      },
-      "id": "node-prepare-format",
-      "name": "Prepare Format Request",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2200,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.formatBody) }}",
-        "options": {}
-      },
-      "id": "node-ai-format",
-      "name": "AI Format & Dedup",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2450,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const d = $input.first().json;\nlet reviewBody, uniqueFindings, duplicatesRemoved;\n\ntry {\n  const candidates = d.candidates;\n  if (candidates && candidates[0] && candidates[0].content) {\n    const parsed = JSON.parse(candidates[0].content.parts[0].text);\n    reviewBody = parsed.reviewBody;\n    uniqueFindings = parsed.uniqueFindings || 0;\n    duplicatesRemoved = parsed.duplicatesRemoved || 0;\n  }\n} catch (e) {\n  reviewBody = 'Failed to format review: ' + e.message;\n  uniqueFindings = 0;\n  duplicatesRemoved = 0;\n}\n\nconst prev = $node['Compute Review Score'].json;\n\nreturn [{\n  json: {\n    ...prev,\n    reviewBody: reviewBody,\n    totalFindings: uniqueFindings,\n    duplicatesRemoved: duplicatesRemoved,\n    criticalCount: [...(prev.securityFindings||[]), ...(prev.performanceFindings||[]), ...(prev.practicesFindings||[])].filter(f => f.severity === 'critical').length,\n    highCount: [...(prev.securityFindings||[]), ...(prev.performanceFindings||[]), ...(prev.practicesFindings||[])].filter(f => f.severity === 'high').length\n  }\n}];"
-      },
-      "id": "node-parse-format",
-      "name": "Parse Formatted Review",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2650,
-        300
-      ]
+      "typeVersion": 2
     }
   ],
   "connections": {
@@ -656,7 +598,7 @@
       "main": [
         [
           {
-            "node": "Prepare Format Request",
+            "node": "Store in PostgreSQL",
             "type": "main",
             "index": 0
           }
@@ -763,42 +705,10 @@
           }
         ]
       ]
-    },
-    "Prepare Format Request": {
-      "main": [
-        [
-          {
-            "node": "AI Format & Dedup",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Format & Dedup": {
-      "main": [
-        [
-          {
-            "node": "Parse Formatted Review",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Formatted Review": {
-      "main": [
-        [
-          {
-            "node": "Store in PostgreSQL",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "binaryMode": "separate"
   }
 }

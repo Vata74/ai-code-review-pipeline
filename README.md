@@ -15,12 +15,6 @@ An intelligent, automated code review system powered by **Gemini AI** that analy
                                                             ↓
                                                    [Compute Score 0-100]
                                                             ↓
-                                                [Prepare Format Request]
-                                                            ↓
-                                                  [AI Format & Dedup]
-                                                            ↓
-                                                [Parse Formatted Review]
-                                                            ↓
                                                    [Store in PostgreSQL]
                                                             ↓
                                                      [Switch Decision]
@@ -30,29 +24,28 @@ An intelligent, automated code review system powered by **Gemini AI** that analy
                                                      [Respond 200]
 ```
 
-**21 nodes** | **Double-diamond pattern** | **4 AI agents** | **Weighted scoring** | **AI-powered deduplication**
+**18 nodes** | **Double-diamond pattern** | **3 parallel AI agents** | **Weighted scoring**
 
 ## What It Does
 
 1. **Receives** a GitHub webhook when a PR is opened
 2. **Fetches** the full diff via GitHub API
 3. **Prepares** specialized prompts with strict scoring rubrics
-4. **Analyzes in parallel** with 3 specialized AI agents (Gemini 2.5 Flash):
+4. **Analyzes in parallel** with 3 specialized AI agents (Gemini 3 Flash):
    - **Security**: SQL injection, XSS, secret exposure, OWASP Top 10
    - **Performance**: N+1 queries, memory leaks, blocking I/O, missing pagination
    - **Best Practices**: SOLID violations, error handling, naming, complexity
 5. **Computes** a weighted composite score: `security x 0.4 + performance x 0.3 + practices x 0.3`
-6. **Deduplicates & formats** findings via a 4th AI agent that removes cross-category duplicates and produces a clean Markdown review
-7. **Stores** full audit trail in PostgreSQL (scores + JSONB findings)
-8. **Routes** the decision: Approve (>=80), Request Changes (50-79), Reject (<50)
-9. **Posts** a professionally formatted review comment on the GitHub PR
+6. **Stores** full audit trail in PostgreSQL (scores + JSONB findings)
+7. **Routes** the decision: Approve (>=80), Request Changes (50-79), Reject (<50)
+8. **Posts** a detailed review comment on the GitHub PR
 
 ## Tech Stack
 
 | Component | Technology |
 |---|---|
 | Workflow Engine | n8n (self-hosted) |
-| AI Analysis | Google Gemini 2.5 Flash |
+| AI Analysis | Google Gemini 3 Flash |
 | Source Control | GitHub REST API v3 |
 | Database | PostgreSQL 16 |
 | Infrastructure | Docker Compose |
